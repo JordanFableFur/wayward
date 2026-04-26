@@ -9,7 +9,8 @@
 <meta name="theme-color" content="#0f0f1a">
 <title>Wayward</title>
 <!-- Supabase JS SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+  onerror="window.__supabaseFailed=true"></script>
 <style>
   :root {
     --bg:#0f0f1a; --surface:#1a1a2e; --surface2:#22223b; --border:#2e2e4a;
@@ -387,15 +388,28 @@
 </div>
 
 <script>
+// Global error fallback — if anything crashes before init(), bail out to auth screen
+window.onerror = function() {
+  const o = document.getElementById('loadingOverlay');
+  const a = document.getElementById('authOverlay');
+  if (o) o.classList.add('hidden');
+  if (a) a.style.display = 'flex';
+};
+
 // ────────────────────────────────────────────────────────────────────────────
-// CONFIG — replace these two values after creating your Supabase project
+// CONFIG
 // ────────────────────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://jvgxokglilqsbxyoazcp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2Z3hva2dsaWxxc2J4eW9hemNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTE2NDksImV4cCI6MjA5MjcyNzY0OX0.8Bl5pciNExUtDiwZRV5uClBmSIxkV5DhrJM_TioWolI';
 // ────────────────────────────────────────────────────────────────────────────
 
-const HAS_SUPABASE = !SUPABASE_URL.startsWith('YOUR_');
-const sb = HAS_SUPABASE ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const HAS_SUPABASE = !SUPABASE_URL.startsWith('YOUR_') && !window.__supabaseFailed && typeof supabase !== 'undefined';
+let sb = null;
+try {
+  if (HAS_SUPABASE) sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch(e) {
+  console.error('Supabase client init failed:', e);
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const STORAGE_KEY = 'schengen_v6';
@@ -596,16 +610,4 @@ function flag(dest) {
 const calState = {};
 
 function initCal(fieldId) {
-  if (!calState[fieldId]) {
-    const today = new Date();
-    calState[fieldId] = { month: today.getMonth(), year: today.getFullYear(), open: false, view: 'days' };
-  }
-}
-
-function toggleCal(fieldId) {
-  initCal(fieldId);
-  const isOpen = calState[fieldId].open;
-  Object.keys(calState).forEach(id => {
-    if (id !== fieldId && calState[id].open) {
-      calState[id].open = false;
-      document.getElementById('calwrap-
+  if
