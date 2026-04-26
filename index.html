@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wayward">
+<meta name="theme-color" content="#0f0f1a">
+<title>Wayward</title>
+<!-- Supabase JS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg:#0f0f1a; --surface:#1a1a2e; --surface2:#22223b; --border:#2e2e4a;
+    --primary:#4f8ef7; --primary-dim:#1e3a6e;
+    --green:#34d399; --green-dim:#064e3b;
+    --yellow:#fbbf24; --yellow-dim:#451a03;
+    --red:#f87171; --red-dim:#450a0a;
+    --text:#f1f5f9; --text2:#94a3b8; --text3:#475569;
+    --radius:16px; --radius-sm:10px;
+    --nav-h:72px; --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+  #app{display:flex;flex-direction:column;height:100dvh;height:100vh}
+  #screen{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 0 calc(var(--nav-h) + var(--safe-bottom)) 0}
+  body{overscroll-behavior:none}
+
+  /* Loading overlay */
+  #loadingOverlay{position:fixed;inset:0;background:var(--bg);z-index:600;display:flex;align-items:center;justify-content:center;transition:opacity .3s}
+  #loadingOverlay.hidden{opacity:0;pointer-events:none}
+  .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Auth overlay */
+  #authOverlay{position:fixed;inset:0;background:var(--bg);z-index:500;display:none;align-items:center;justify-content:center;padding:24px;overflow-y:auto}
+  .auth-card{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px 24px}
+  .auth-logo{font-size:52px;text-align:center;margin-bottom:14px}
+  .auth-title{font-size:24px;font-weight:800;text-align:center;margin-bottom:8px}
+  .auth-sub{font-size:14px;color:var(--text2);text-align:center;line-height:1.6;margin-bottom:28px}
+  .auth-hint{font-size:12px;color:var(--text3);text-align:center;margin-top:12px;line-height:1.6}
+
+  /* Nav */
+  #nav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + var(--safe-bottom));padding-bottom:var(--safe-bottom);background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:stretch;z-index:100}
+  .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:none;background:none;color:var(--text3);cursor:pointer;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;transition:color .15s}
+  .nav-btn.active{color:var(--primary)}
+  .nav-btn svg{width:22px;height:22px}
+
+  /* Header */
+  .page-header{padding:54px 20px 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .page-header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .page-header h1{font-size:22px;font-weight:700}
+  .page-header p{font-size:13px;color:var(--text2);margin-top:2px}
+  .user-chip{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;margin-top:4px}
+  .user-chip:active{opacity:.7}
+
+  /* Cards */
+  .card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin:0 16px 12px}
+  .card-header{padding:12px 16px 10px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .card-body{padding:16px}
+
+  /* Hero */
+  .hero{margin:20px 16px 12px;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:28px 20px 24px;text-align:center;position:relative;overflow:hidden;transition:border-color .6s}
+  .hero.good{border-color:rgba(52,211,153,.45)}
+  .hero.good::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,rgba(52,211,153,.13) 0%,transparent 65%);pointer-events:none}
+  @keyframes borderPulse{0%,100%{border-color:rgba(52,211,153,.45)}50%{border-color:rgba(52,211,153,.2)}}
+  .hero.good{animation:borderPulse 3s ease-in-out infinite}
+  .hero.caution{border-color:rgba(251,191,36,.3)}
+  .hero.danger{border-color:rgba(248,113,113,.35)}
+  .hero-eyebrow{font-size:12px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
+  .hero-number{font-size:88px;font-weight:800;line-height:1;letter-spacing:-4px;animation:numIn .45s cubic-bezier(.25,.46,.45,.94) both}
+  .hero-unit{font-size:18px;font-weight:700;color:var(--text2);margin-top:4px}
+  .hero-context{font-size:13px;color:var(--text3);margin-top:4px;min-height:18px}
+  .hero-status{display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;animation:fadeUp .35s .25s ease both}
+  .hero-status.good{background:var(--green-dim);color:var(--green)}
+  .hero-status.caution{background:var(--yellow-dim);color:var(--yellow)}
+  .hero-status.danger{background:var(--red-dim);color:var(--red)}
+  @keyframes numIn{from{opacity:0;transform:scale(.8) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  /* Stats */
+  .stat-row{display:flex;gap:10px;margin:0 16px 12px}
+  .stat-box{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;text-align:center}
+  .stat-box .val{font-size:22px;font-weight:800;line-height:1}
+  .stat-box .lbl{font-size:10px;font-weight:600;letter-spacing:.5px;color:var(--text3);text-transform:uppercase;margin-top:4px}
+
+  /* Progress */
+  .progress-wrap{padding:0 16px 12px}
+  .progress-labels{display:flex;justify-content:space-between;font-size:12px;color:var(--text3);align-items:center}
+  .info-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1}
+  .progress-bar-bg{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-top:6px}
+  .progress-bar-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+  .threshold-tip{font-size:11px;color:var(--text3);margin-top:5px;display:none}
+  .threshold-tip.visible{display:block}
+
+  /* Timeline */
+  .timeline-canvas{width:100%;display:block;border-radius:8px;cursor:pointer}
+  .timeline-legend{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap}
+  .tleg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3)}
+  .tleg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+  /* Gain badge */
+  .gain-banner{background:var(--green-dim);border:1px solid rgba(52,211,153,.3);border-radius:var(--radius-sm);padding:10px 14px;margin:0 16px 12px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:var(--green);animation:fadeUp .4s ease both}
+
+  /* Expiry */
+  .expiry-item{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--border)}
+  .expiry-item:last-child{border-bottom:none}
+  .expiry-item .left .title{font-size:14px;font-weight:500}
+  .expiry-item .left .sub{font-size:12px;color:var(--text2);margin-top:3px;line-height:1.5}
+  .expiry-item .right{font-size:13px;font-weight:700;color:var(--green);text-align:right;white-space:nowrap;margin-left:12px;flex-shrink:0}
+
+  /* Trips */
+  .trip-item{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+  .trip-item:last-child{border-bottom:none}
+  .trip-item:active{background:var(--surface2)}
+  .trip-info{flex:1;min-width:0}
+  .trip-name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trip-dates{font-size:12px;color:var(--text2);margin-top:2px}
+  .trip-win{font-size:11px;color:var(--primary);margin-top:2px}
+  .trip-days{text-align:right;flex-shrink:0}
+  .trip-days .count{font-size:20px;font-weight:800;color:var(--primary)}
+  .trip-days .label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+  .trip-past{opacity:.5}
+  .trip-active{border-left:3px solid var(--green)}
+  .active-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.5px;margin-top:3px}
+  .active-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s ease-in-out infinite}
+  .planned-badge{font-size:10px;font-weight:700;color:var(--yellow);text-transform:uppercase;letter-spacing:.5px;margin-top:3px}
+  .add-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:calc(100% - 32px);margin:16px 16px 8px;padding:16px;background:var(--primary-dim);border:1.5px dashed var(--primary);border-radius:var(--radius);color:var(--primary);font-size:15px;font-weight:600;cursor:pointer;transition:background .15s}
+  .add-btn:active{background:#1e3a8a}
+
+  /* Data buttons */
+  .data-row{display:flex;gap:8px;margin:4px 16px 16px;padding-top:4px}
+  .data-btn{flex:1;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;text-align:center}
+  .data-btn:active{opacity:.7}
+
+  /* Planner */
+  .planner-result{background:var(--surface2);border-radius:var(--radius-sm);padding:16px;margin-top:16px}
+  .result-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+  .result-row:last-child{border-bottom:none}
+  .result-row .rlabel{color:var(--text2)}
+  .result-row .rval{font-weight:700}
+  .verdict{margin-top:16px;padding:14px;border-radius:var(--radius-sm);font-size:15px;font-weight:700;text-align:center}
+  .verdict.ok{background:var(--green-dim);color:var(--green)}
+  .verdict.warn{background:var(--yellow-dim);color:var(--yellow)}
+  .verdict.no{background:var(--red-dim);color:var(--red)}
+
+  /* Quick date buttons */
+  .quick-days{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .qd-btn{padding:8px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:all .1s;min-height:36px}
+  .qd-btn:active{background:var(--primary-dim);border-color:var(--primary);color:var(--primary)}
+
+  /* Best windows */
+  .window-card{background:var(--surface2);border-radius:var(--radius-sm);padding:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .window-card:last-child{margin-bottom:0}
+  .wc-left .wc-dates{font-size:14px;font-weight:600}
+  .wc-left .wc-sub{font-size:12px;color:var(--text2);margin-top:2px}
+  .wc-right{text-align:right;flex-shrink:0;margin-left:12px}
+  .wc-right .wc-days{font-size:20px;font-weight:800;color:var(--green)}
+  .wc-right .wc-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+  .wc-plan-btn{display:block;font-size:11px;color:var(--primary);font-weight:600;margin-top:4px;cursor:pointer;background:none;border:none;padding:0;text-align:right}
+
+  /* Forms */
+  .form-group{margin-bottom:16px}
+  .form-label{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
+  .form-input{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:16px;padding:13px 14px;outline:none;transition:border-color .15s;-webkit-appearance:none;font-family:inherit}
+  .form-input:focus{border-color:var(--primary)}
+  .form-input::placeholder{color:var(--text3)}
+  .form-hint{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.5}
+
+  /* ── Custom Calendar Picker ── */
+  .date-btn{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text3);font-size:16px;padding:13px 14px;text-align:left;cursor:pointer;font-family:inherit;transition:border-color .15s;display:flex;justify-content:space-between;align-items:center}
+  .date-btn.has-val{color:var(--text)}
+  .date-btn.open{border-color:var(--primary)}
+  .date-btn-arrow{font-size:12px;color:var(--text3);transition:transform .2s}
+  .date-btn.open .date-btn-arrow{transform:rotate(180deg)}
+  .cal-wrap{overflow:hidden;max-height:0;transition:max-height .25s cubic-bezier(.4,0,.2,1)}
+  .cal-wrap.open{max-height:340px}
+  .cal-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:6px;overflow:hidden}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--border)}
+  .cal-title-btn{background:none;border:none;color:var(--text);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:4px;transition:background .1s;min-height:36px}
+  .cal-title-btn:active{background:var(--border)}
+  .cal-title-arrow{font-size:10px;color:var(--text3);transition:transform .15s}
+  .cal-title-btn.month-view .cal-title-arrow{transform:rotate(180deg)}
+  .cal-nav{background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:0 8px;line-height:1;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+  .cal-nav:active{color:var(--primary)}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);padding:8px 6px 10px;gap:1px}
+  .cal-dow{text-align:center;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.5px;padding:5px 0 7px}
+  .cal-day{text-align:center;font-size:14px;padding:0;border-radius:8px;cursor:pointer;min-height:38px;display:flex;align-items:center;justify-content:center;transition:background .1s;position:relative;font-weight:400}
+  .cal-day:active{background:var(--primary-dim)}
+  .cal-day.today{color:var(--primary);font-weight:700}
+  .cal-day.today::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--primary)}
+  .cal-day.selected{background:var(--primary);color:#fff;font-weight:700}
+  .cal-day.selected.today::after{background:#fff}
+  .cal-day.disabled{color:var(--text3);opacity:.3;cursor:default;pointer-events:none}
+  .cal-day.other-month{color:var(--text3);opacity:.25}
+  .cal-month-grid{display:grid;grid-template-columns:repeat(3,1fr);padding:8px 6px 12px;gap:4px}
+  .cal-month-cell{text-align:center;font-size:13px;font-weight:500;border-radius:8px;cursor:pointer;min-height:42px;display:flex;align-items:center;justify-content:center;transition:background .1s;color:var(--text2)}
+  .cal-month-cell:active{background:var(--primary-dim)}
+  .cal-month-cell.this-month{color:var(--primary);font-weight:700}
+  .cal-month-cell.sel-month{background:var(--primary);color:#fff;font-weight:700}
+
+  /* Sheets */
+  .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .25s}
+  .sheet-overlay.open{opacity:1;pointer-events:all}
+  .sheet{width:100%;background:var(--surface);border-radius:20px 20px 0 0;padding:0 0 calc(16px + var(--safe-bottom)) 0;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);max-height:92dvh;max-height:92vh;overflow-y:auto;touch-action:pan-y}
+  .sheet-overlay.open .sheet{transform:translateY(0)}
+  .sheet-handle{width:44px;height:5px;background:var(--text3);border-radius:3px;margin:14px auto 0;opacity:.45}
+  .sheet-title{font-size:18px;font-weight:700;padding:16px 20px 8px}
+  .sheet-subtitle{font-size:14px;color:var(--text2);padding:0 20px 12px;line-height:1.5}
+  .sheet-body{padding:8px 20px 0}
+  .sheet-actions{display:flex;gap:10px;padding:16px 20px 0}
+  .btn{flex:1;padding:15px;border:none;border-radius:var(--radius-sm);font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .15s}
+  .btn:active{opacity:.8}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-ghost{background:var(--surface2);color:var(--text2)}
+  .btn-danger{background:var(--red-dim);color:var(--red)}
+  .btn-green{background:var(--green-dim);color:var(--green)}
+
+  .empty{text-align:center;padding:48px 24px;color:var(--text3)}
+  .empty .icon{font-size:48px;margin-bottom:12px}
+  .empty p{font-size:14px;line-height:1.6}
+  .text-green{color:var(--green)}
+  .text-yellow{color:var(--yellow)}
+  .text-red{color:var(--red)}
+  .text-primary{color:var(--primary)}
+
+  .safety-box{background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.18);border-radius:var(--radius-sm);padding:12px 14px;margin-top:12px}
+  .safety-box p{font-size:13px;color:var(--text2);line-height:1.6}
+  .safety-box.warn{background:rgba(248,113,113,.07);border-color:rgba(248,113,113,.2)}
+
+  .empty-cta{text-align:center;padding:16px;margin:0 16px 12px}
+  .empty-cta p{font-size:13px;color:var(--text3);margin-bottom:12px;line-height:1.5}
+  .cta-btn{display:inline-block;background:var(--primary-dim);border:1px solid var(--primary);color:var(--primary);font-size:14px;font-weight:600;padding:12px 24px;border-radius:var(--radius-sm);cursor:pointer}
+  .cta-btn:active{opacity:.8}
+
+  .legal-note{font-size:11px;color:var(--text3);text-align:center;padding:8px 24px 4px;line-height:1.5}
+
+  .merge-toggle{display:flex;align-items:center;gap:10px;padding:10px 0 4px;cursor:pointer}
+  .merge-toggle input[type=checkbox]{width:20px;height:20px;accent-color:var(--primary);cursor:pointer;flex-shrink:0}
+  .merge-toggle span{font-size:14px;color:var(--text2);line-height:1.4}
+
+  /* Sync banner */
+  .sync-banner{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin:12px 16px 0;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3)}
+
+  .toast{position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 12px);left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:300;animation:fadeUp .3s ease;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+</div>
+
+<!-- Auth overlay -->
+<div id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">🌍</div>
+    <h1 class="auth-title">Wayward</h1>
+    <p class="auth-sub">Travel freely. Stay compliant.<br>Sign in to sync across all your devices.</p>
+    <div id="auth-form">
+      <div class="form-group">
+        <label class="form-label">Your email</label>
+        <input class="form-input" id="auth-email" type="email" placeholder="you@example.com" autocomplete="email"
+          onkeydown="if(event.key==='Enter')signIn()">
+      </div>
+      <button class="btn btn-primary" id="auth-send-btn" style="width:100%" onclick="signIn()">Send magic link</button>
+      <p class="auth-hint">We'll email you a one-tap sign-in link.<br>No password needed.</p>
+    </div>
+    <div id="auth-sent" style="display:none;text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">📬</div>
+      <p style="font-size:16px;font-weight:600">Check your email</p>
+      <p style="font-size:14px;color:var(--text2);margin-top:8px;line-height:1.5">We sent a sign-in link to<br><strong id="auth-sent-email" style="color:var(--primary)"></strong></p>
+      <button class="btn btn-ghost" style="width:100%;margin-top:20px"
+        onclick="document.getElementById('auth-sent').style.display='none';document.getElementById('auth-form').style.display='block'">
+        Try a different email
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div id="screen"></div>
+  <nav id="nav">
+    <button class="nav-btn active" data-tab="home" onclick="nav('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Home
+    </button>
+    <button class="nav-btn" data-tab="trips" onclick="nav('trips')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19.5 2.5c-1.5-1.5-3.5-1.5-5 0L11 6 2.8 4.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L8 12l-2 2H4l-1 2 3 1 1 3 2-1v-2l2-2 5.2 6.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z"/></svg>
+      Trips
+    </button>
+    <button class="nav-btn" data-tab="planner" onclick="nav('planner')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8.01" y2="14" stroke-width="3"/><line x1="12" y1="14" x2="12.01" y2="14" stroke-width="3"/><line x1="16" y1="14" x2="16.01" y2="14" stroke-width="3"/></svg>
+      Planner
+    </button>
+  </nav>
+</div>
+
+<!-- Trip Sheet -->
+<div class="sheet-overlay" id="tripSheet">
+  <div class="sheet" id="tripSheetInner">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="sheetTitle">Add Trip</div>
+    <div class="sheet-body">
+      <div class="form-group">
+        <label class="form-label">Destination</label>
+        <input class="form-input" id="f-dest" type="text" placeholder="e.g. Portugal, Poland, Italy…" autocomplete="off">
+        <p class="form-hint">Visiting multiple countries? Log the whole journey as one entry — first border crossed to last border exited.</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Entry Date</label>
+        <button class="date-btn" id="btn-f-start" onclick="toggleCal('f-start')">
+          <span id="lbl-f-start">Select date</span>
+          <span class="date-btn-arrow">▾</span>
+        </button>
+        <input type="hidden" id="f-start">
+        <div class="cal-wrap" id="calwrap-f-start"><div class="cal-box" id="cal-f-start"></div></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Exit Date</label>
+        <button class="date-btn" id="btn-f-end" onclick="toggleCal('f-end')">
+          <span id="lbl-f-end">Select date</span>
+          <span class="date-btn-arrow">▾</span>
+        </button>
+        <input type="hidden" id="f-end">
+        <div class="cal-wrap" id="calwrap-f-end"><div class="cal-box" id="cal-f-end"></div></div>
+      </div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost" onclick="closeSheet('tripSheet')">Cancel</button>
+      <button class="btn btn-danger" id="deleteBtn" onclick="deleteTrip()" style="display:none">Delete</button>
+      <button class="btn btn-primary" onclick="saveTrip()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Onboarding Sheet -->
+<div class="sheet-overlay" id="onboardSheet">
+  <div class="sheet" id="onboardSheetInner">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Welcome to Wayward 🌍</div>
+    <div class="sheet-subtitle">Most of Europe shares a single visa zone. Here's the rule:</div>
+    <div class="sheet-body">
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:16px;margin-bottom:14px">
+        <p style="font-size:14px;line-height:1.75;color:var(--text2)"><strong style="color:var(--text)">The 90/180 rule:</strong> At any point, you can only have spent <strong style="color:var(--green)">90 days</strong> in Schengen within the past <strong style="color:var(--primary)">180 days</strong>.</p>
+        <p style="font-size:14px;line-height:1.75;color:var(--text2);margin-top:10px"><strong style="color:var(--text)">It's rolling:</strong> The window moves forward every day. Trips older than 180 days stop counting — those days are yours again. No annual reset.</p>
+        <p style="font-size:14px;line-height:1.75;color:var(--text2);margin-top:10px"><strong style="color:var(--text)">Both entry AND exit days count.</strong> A 2-night trip = 3 Schengen days.</p>
+        <p style="font-size:14px;line-height:1.75;color:var(--text2);margin-top:10px"><strong style="color:var(--text)">Multi-country trips:</strong> France → Italy → Spain? Log it as one trip — first border to last. All Schengen countries share the same count.</p>
+      </div>
+      <div class="safety-box">
+        <p>This app keeps you compliant automatically. Overstaying means fines (€100–€500), possible detention, and a 1–5 year re-entry ban. You're here so that never happens.</p>
+      </div>
+      <p style="font-size:13px;color:var(--text3);margin-top:14px;margin-bottom:4px">Example trips are pre-loaded. Tap "Start fresh" to enter your own.</p>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost" onclick="dismissOnboard(false)">Keep examples</button>
+      <button class="btn btn-primary" onclick="dismissOnboard(true)">Start fresh</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import Sheet -->
+<div class="sheet-overlay" id="importSheet">
+  <div class="sheet" id="importSheetInner">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Import Trip Data</div>
+    <div class="sheet-subtitle">Paste exported trip data below.</div>
+    <div class="sheet-body">
+      <div class="form-group">
+        <label class="form-label">Paste data</label>
+        <textarea class="form-input" id="import-text" rows="6" style="resize:none;height:140px;font-size:13px;font-family:monospace"
+          placeholder='[{"id":"...","dest":"...","start":"YYYY-MM-DD","end":"YYYY-MM-DD"}]'></textarea>
+      </div>
+      <label class="merge-toggle">
+        <input type="checkbox" id="import-merge">
+        <span>Merge with existing trips<br><span style="font-size:12px;color:var(--text3)">Only adds new trips — keeps your current data safe</span></span>
+      </label>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost" onclick="closeSheet('importSheet')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmImport()">Import</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────────────────────────────────
+// CONFIG — replace these two values after creating your Supabase project
+// ────────────────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://jvgxokglilqsbxyoazcp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2Z3hva2dsaWxxc2J4eW9hemNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTE2NDksImV4cCI6MjA5MjcyNzY0OX0.8Bl5pciNExUtDiwZRV5uClBmSIxkV5DhrJM_TioWolI';
+// ────────────────────────────────────────────────────────────────────────────
+
+const HAS_SUPABASE = !SUPABASE_URL.startsWith('YOUR_');
+const sb = HAS_SUPABASE ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'schengen_v6';
+const ONBOARD_KEY = 'schengen_ob_v6';
+const LAST_REM_KEY = 'schengen_lastrem_v6';
+let trips = [];
+let currentUser = null;
+let editingId = null;
+let currentTab = 'home';
+
+const EXAMPLE_TRIPS = [
+  {id:'ex1',dest:'Portugal (Lisbon)',start:'2025-08-06',end:'2025-08-19',planned:false},
+  {id:'ex2',dest:'Poland',start:'2025-10-19',end:'2025-12-04',planned:false},
+  {id:'ex3',dest:'Poland',start:'2026-02-13',end:'2026-02-26',planned:false},
+];
+const TRIP_COLORS = ['#4f8ef7','#34d399','#fbbf24','#f87171','#a78bfa','#fb923c','#38bdf8'];
+
+// ── Loading / Auth UI ─────────────────────────────────────────────────────────
+function setLoading(on) {
+  document.getElementById('loadingOverlay').classList.toggle('hidden', !on);
+}
+function showAuthOverlay() {
+  document.getElementById('authOverlay').style.display = 'flex';
+}
+function hideAuthOverlay() {
+  document.getElementById('authOverlay').style.display = 'none';
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function signIn() {
+  const email = document.getElementById('auth-email').value.trim();
+  if (!email || !email.includes('@')) { showToast('Enter a valid email'); return; }
+  const btn = document.getElementById('auth-send-btn');
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href.split('#')[0] }
+  });
+  btn.textContent = 'Send magic link'; btn.disabled = false;
+  if (error) { showToast('Could not send link — try again'); return; }
+  document.getElementById('auth-sent-email').textContent = email;
+  document.getElementById('auth-form').style.display = 'none';
+  document.getElementById('auth-sent').style.display = 'block';
+}
+
+async function signOut() {
+  if (!confirm('Sign out of Wayward?')) return;
+  await sb.auth.signOut();
+  trips = [];
+  currentUser = null;
+  localStorage.removeItem(STORAGE_KEY);
+  showAuthOverlay();
+  nav('home');
+}
+
+// ── DB mapping ────────────────────────────────────────────────────────────────
+function dbToTrip(row) {
+  return { id: row.id, dest: row.dest, start: row.start_date, end: row.end_date, planned: row.planned || false };
+}
+function tripToDb(trip) {
+  return { id: trip.id, user_id: currentUser.id, dest: trip.dest, start_date: trip.start, end_date: trip.end, planned: trip.planned || false };
+}
+
+// ── Data Layer ────────────────────────────────────────────────────────────────
+async function loadTripsFromDB() {
+  if (!HAS_SUPABASE || !currentUser) { loadLocalTrips(); return; }
+  const { data, error } = await sb.from('trips').select('*').order('start_date', { ascending: false });
+  if (error) { showToast('Could not load trips'); loadLocalTrips(); return; }
+  trips = (data || []).map(dbToTrip);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+}
+
+function loadLocalTrips() {
+  try { trips = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { trips = []; }
+  if (!trips.length) {
+    for (const k of ['schengen_v5', 'schengen_v4', 'schengen_v3']) {
+      try {
+        const v = JSON.parse(localStorage.getItem(k) || '[]');
+        if (v.length) { trips = v; localStorage.setItem(STORAGE_KEY, JSON.stringify(trips)); return; }
+      } catch {}
+    }
+    trips = JSON.parse(JSON.stringify(EXAMPLE_TRIPS));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+  }
+}
+
+async function syncTrip(trip) {
+  if (!HAS_SUPABASE || !currentUser) return;
+  const { error } = await sb.from('trips').upsert(tripToDb(trip));
+  if (error) showToast('Sync error — changes saved locally');
+}
+
+async function deleteTripFromDB(id) {
+  if (!HAS_SUPABASE || !currentUser) return;
+  const { error } = await sb.from('trips').delete().eq('id', id).eq('user_id', currentUser.id);
+  if (error) showToast('Could not delete from server');
+}
+
+async function migrateLocalIfNeeded() {
+  // If user has local trips that aren't example trips, and DB is empty, offer to migrate
+  const localRaw = localStorage.getItem('schengen_v6') || localStorage.getItem('schengen_v5');
+  if (!localRaw) return;
+  let localTrips;
+  try { localTrips = JSON.parse(localRaw); } catch { return; }
+  const realTrips = localTrips.filter(t => !EXAMPLE_TRIPS.find(e => e.id === t.id));
+  if (!realTrips.length) return;
+  const { data } = await sb.from('trips').select('id').limit(1);
+  if (data && data.length > 0) return; // already has DB data
+  const { error } = await sb.from('trips').insert(realTrips.map(t => tripToDb(t)));
+  if (!error) showToast(`${realTrips.length} trips synced to your account ✅`);
+}
+
+function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+// ── Math ──────────────────────────────────────────────────────────────────────
+function parseDate(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d, 12, 0, 0); }
+function diffDays(a, b) { return Math.round((b-a) / 86400000); }
+function tripDuration(t) { return diffDays(parseDate(t.start), parseDate(t.end)) + 1; }
+
+function daysInWindow(list, check) {
+  const ws = new Date(check); ws.setDate(ws.getDate() - 179);
+  let tot = 0;
+  for (const t of list) {
+    const s = parseDate(t.start), e = parseDate(t.end);
+    const es = s > ws ? s : ws, ee = e < check ? e : check;
+    if (ee >= es) tot += diffDays(es, ee) + 1;
+  }
+  return tot;
+}
+function daysRemaining(list, check) { return 90 - daysInWindow(list, check); }
+function statusCode(r) { return r >= 30 ? 'good' : r >= 10 ? 'caution' : 'danger'; }
+function isActive(t) { const n = new Date(); n.setHours(12,0,0,0); return parseDate(t.start) <= n && parseDate(t.end) >= n; }
+function isFuture(t) { const n = new Date(); n.setHours(12,0,0,0); return parseDate(t.start) > n; }
+
+function freeUpDate(list) {
+  const n = new Date(); n.setHours(12,0,0,0);
+  const cur = daysRemaining(list, n);
+  for (let i = 1; i <= 365; i++) { const d = new Date(n); d.setDate(d.getDate()+i); if (daysRemaining(list,d) > cur) return d; }
+  return null;
+}
+
+function humanizedExpiryBlocks(list) {
+  const n = new Date(); n.setHours(12,0,0,0);
+  const blocks = [];
+  let prev = daysRemaining(list, n), blockStart = null, blockGain = 0;
+  for (let i = 1; i <= 180; i++) {
+    const d = new Date(n); d.setDate(d.getDate()+i);
+    const rem = daysRemaining(list, d);
+    if (rem > prev) {
+      if (!blockStart) blockStart = new Date(d);
+      blockGain += rem - prev; prev = rem;
+    } else if (blockStart && rem === prev) {
+      const expDate = new Date(blockStart); expDate.setDate(expDate.getDate()-1);
+      const matchTrip = list.slice().sort((a,b) => a.start.localeCompare(b.start)).find(t => Math.abs(diffDays(parseDate(t.end), expDate)) <= 2);
+      blocks.push({ from: blockStart, gain: blockGain, cumulative: prev, trip: matchTrip || null });
+      blockStart = null; blockGain = 0;
+    }
+  }
+  if (blockStart) blocks.push({ from: blockStart, gain: blockGain, cumulative: prev, trip: null });
+  return blocks.slice(0, 3);
+}
+
+function bestTravelWindows(list) {
+  const n = new Date(); n.setHours(12,0,0,0);
+  const windows = []; let wStart = null, wMax = 0;
+  for (let i = 0; i <= 185; i++) {
+    const d = new Date(n); d.setDate(d.getDate()+i);
+    const rem = daysRemaining(list, d);
+    if (rem >= 20) {
+      if (!wStart) { wStart = new Date(d); wMax = rem; } else if (rem > wMax) wMax = rem;
+    } else if (wStart) {
+      const prev = new Date(d); prev.setDate(prev.getDate()-1);
+      windows.push({ start: wStart, end: prev, maxDays: wMax });
+      wStart = null; wMax = 0;
+    }
+  }
+  if (wStart) { const last = new Date(n); last.setDate(last.getDate()+180); windows.push({ start: wStart, end: last, maxDays: wMax }); }
+  return windows.sort((a,b) => b.maxDays - a.maxDays).slice(0,3).sort((a,b) => a.start - b.start);
+}
+
+// ── Format ────────────────────────────────────────────────────────────────────
+const MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MOL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function fmt(s) { const d = parseDate(s); return `${d.getDate()} ${MO[d.getMonth()]} ${d.getFullYear()}`; }
+function fmtD(d) { return `${d.getDate()} ${MO[d.getMonth()]} ${d.getFullYear()}`; }
+function fmtShort(d) { return `${d.getDate()} ${MO[d.getMonth()]}`; }
+function toInput(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
+function flag(dest) {
+  const map = {portugal:'🇵🇹',lisbon:'🇵🇹',poland:'🇵🇱',france:'🇫🇷',paris:'🇫🇷',italy:'🇮🇹',rome:'🇮🇹',spain:'🇪🇸',barcelona:'🇪🇸',madrid:'🇪🇸',germany:'🇩🇪',berlin:'🇩🇪',netherlands:'🇳🇱',amsterdam:'🇳🇱',greece:'🇬🇷',athens:'🇬🇷',croatia:'🇭🇷',czech:'🇨🇿',prague:'🇨🇿',austria:'🇦🇹',vienna:'🇦🇹',switzerland:'🇨🇭',belgium:'🇧🇪',sweden:'🇸🇪',norway:'🇳🇴',denmark:'🇩🇰',finland:'🇫🇮',hungary:'🇭🇺',budapest:'🇭🇺',slovakia:'🇸🇰',slovenia:'🇸🇮',estonia:'🇪🇪',latvia:'🇱🇻',lithuania:'🇱🇹',luxembourg:'🇱🇺',malta:'🇲🇹',iceland:'🇮🇸'};
+  const k = dest.toLowerCase();
+  for (const [key, f] of Object.entries(map)) if (k.includes(key)) return f;
+  return '🌍';
+}
+
+// ── Custom Calendar Picker ────────────────────────────────────────────────────
+const calState = {};
+
+function initCal(fieldId) {
+  if (!calState[fieldId]) {
+    const today = new Date();
+    calState[fieldId] = { month: today.getMonth(), year: today.getFullYear(), open: false, view: 'days' };
+  }
+}
+
+function toggleCal(fieldId) {
+  initCal(fieldId);
+  const isOpen = calState[fieldId].open;
+  Object.keys(calState).forEach(id => {
+    if (id !== fieldId && calState[id].open) {
+      calState[id].open = false;
+      document.getElementById('calwrap-'+id)?.classList.remove('open');
+      document.getEle
