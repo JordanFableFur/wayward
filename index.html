@@ -459,10 +459,8 @@ async function signIn() {
 async function signOut() {
   if (!confirm('Sign out of Wayward?')) return;
   await sb.auth.signOut();
-  trips = [];
   currentUser = null;
-  localStorage.removeItem(STORAGE_KEY);
-  showAuthOverlay();
+  loadLocalTrips();
   nav('home');
 }
 
@@ -610,4 +608,6 @@ function flag(dest) {
 const calState = {};
 
 function initCal(fieldId) {
-  if
+  if (!calState[fieldId]) {
+    const today = new Date();
+ 
