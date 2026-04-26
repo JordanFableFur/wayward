@@ -28,8 +28,8 @@
   body{overscroll-behavior:none}
 
   /* Loading overlay */
-  #loadingOverlay{position:fixed;inset:0;background:var(--bg);z-index:600;display:flex;align-items:center;justify-content:center;transition:opacity .3s}
-  #loadingOverlay.hidden{opacity:0;pointer-events:none}
+  #loadingOverlay{position:fixed;inset:0;background:var(--bg);z-index:600;display:flex;align-items:center;justify-content:center;transition:opacity .3s,visibility .3s}
+  #loadingOverlay.hidden{opacity:0;pointer-events:none;visibility:hidden}
   .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -418,6 +418,7 @@ function setLoading(on) {
   document.getElementById('loadingOverlay').classList.toggle('hidden', !on);
 }
 function showAuthOverlay() {
+  setLoading(false);
   document.getElementById('authOverlay').style.display = 'flex';
 }
 function hideAuthOverlay() {
@@ -607,5 +608,4 @@ function toggleCal(fieldId) {
   Object.keys(calState).forEach(id => {
     if (id !== fieldId && calState[id].open) {
       calState[id].open = false;
-      document.getElementById('calwrap-'+id)?.classList.remove('open');
-      document.getEle
+      document.getElementById('calwrap-
